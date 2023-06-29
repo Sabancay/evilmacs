@@ -11,15 +11,15 @@ The following shows a highlevel view of files that together form my Emacs setup.
 so that they can be easily backupped.
 
 ~/emacsen
-   _emacs-profile
-   _emacs-profiles.el
-   abbreviations
-   *evilmacs*
-   fonts
-   reveal
-   server
-   snippets
-   steal-from
-   testfiles
-   *testmacs*
-   treesitter
+-   _emacs-profile
+-   _emacs-profiles.el
+-   abbreviations
+-   *evilmacs*
+-   fonts
+-   reveal
+-   server
+-   snippets
+-   steal-from
+-   testfiles
+-   *testmacs*
+-   treesitter
