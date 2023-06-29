@@ -1,0 +1,457 @@
+** All
+#+begin_src emacs-lisp
+    (global-set-key (kbd "<f12>") 'menu-bar-mode)
+    (global-set-key (kbd "C-+") 'text-scale-increase)
+    (global-set-key (kbd "C--") 'text-scale-decrease)
+
+    ;; Start eshell or switch to it if it's active.
+    (global-set-key (kbd "<f4>")  'eshell)
+#+end_src
+
+** Windows
+#+begin_src emacs-lisp
+   (if sys/win32p
+     (progn
+     (global-set-key (kbd "S-<f4>") 'run-shell)
+     (global-set-key (kbd "M-<f4>") 'run-cmd)
+     )
+  )
+#+end_src
+
+** Linux
+#+begin_src emacs-lisp
+#+end_src
+
+* Collected keystrokes
+
+#+begin_src emacs-lisp
+  (global-set-key (kbd "C-x C-b") 'ibuffer)
+  (global-set-key (kbd "C-x C-f") 'find-file)
+  (global-set-key (kbd "C-x r") 'recentf-open-files)
+  (global-set-key (kbd "C-x p") 'proced)
+  (global-set-key (kbd "C-S-g") 'pt/abort)
+  (global-set-key (kbd "C-x k") 'kill-this-buffer)
+  (global-set-key (kbd "C-x K") 'kill-buffer)
+  (global-set-key (kbd "C-c K") 'kill-all-buffers)
+  (global-set-key (kbd "C-c q") 'fill-paragraph)
+  (global-set-key (kbd "C-c Q") 'set-fill-column)
+  (global-set-key (kbd "C-c I") 'pt/indent-just-yanked)
+  (global-set-key (kbd "C-c e") 'embark-act)
+  ;; insert unicode character
+  (global-set-key (kbd "C-c U") 'insert-char)
+#+end_src
+
+
+
+    :bind (("<f10>" . pomidor)
+           ("S-<f10>" . pomidor-break)
+           ("C-S-<f10>" . pomidor-reset)
+     )
+
+;;(let ((map global-map))
+;;  (define-key map (kbd "C-c n j") #'my-denote-journal) ; our custom command
+;;  (define-key map (kbd "C-c n n") #'denote)
+;;  (define-key map (kbd "C-c n N") #'denote-type)
+;;  (define-key map (kbd "C-c n d") #'denote-date)
+;;  (define-key map (kbd "C-c n i") #'denote-link) ; "insert" mnemonic
+;;  (define-key map (kbd "C-c n r") #'denote-rename-file)
+;;  (define-key map (kbd "C-c n R") #'denote-rename-file-using-front-matter))
+
+;; Key bindings specifically for Dired.
+;;(let ((map dired-mode-map))
+;;  (define-key map (kbd "C-c C-d C-i") #'denote-link-dired-marked-notes)
+;;  (define-key map (kbd "C-c C-d C-r") #'denote-dired-rename-marked-files)
+;;  (define-key map (kbd "C-c C-d C-R") #'denote-dired-rename-marked-files-using-front-matter))
+
+
+
+
+* Hydras
+see: stealfrom: centaur
+better: https://github.com/abo-abo/hydra/wiki/
+
+#+begin_src emacs-lisp
+  (use-package hydra
+    :ensure t
+    :hook (emacs-lisp-mode . hydra-add-imenu))
+#+end_src
+
+** TODO Hydra to invoke Hydras
+
+Stolen from aboabo
+
+steal-from/aboabo/modes/ora-hydra-k.el
+
+#+begin_src emacs-lisp
+(defhydra hydra-k (global-map "<f2>" :exit t :idle 0.8)
+  "Misc command launcher."
+  ("," hydra-toggle/body "toggle functionality")
+  ("." hydra-complete/body "complete at point")
+  ("a" hydra-avy/body "avy")
+  ("c" hydra-consult/body "consult")
+  ("g" hydra-web-search/body "web search")
+  ("r" hydra-rectangle/body "rectangle editing")
+  ("s" hydra-registers/body "registers")
+  ("t" hydra-org-template/body "org-templates")
+  ("w" hydra-window/body "window management")
+  )
+#+end_src
+
+
+** Avy Hydra
+#+begin_src emacs-lisp
+    (use-package avy
+      :ensure t
+      :config
+      (setq avy-background t))
+
+      (defhydra hydra-avy (:color teal)
+        ("j" avy-goto-char "char")
+        ("w" avy-goto-word-0 "word-0")
+        ("SPC" avy-goto-whitespace-end "ws")
+        ("e" avy-goto-word-1 "word-1")
+        ("l" avy-goto-line "line")
+        ("s" avy-goto-char-timer "timer")
+        ("f" counsel-find-file)
+        ("q" nil))
+
+      (defhydra hydra-avy-cycle ()
+        ("j" avy-next "next")
+        ("k" avy-prev "prev")
+        ("q" nil "quit"))
+
+      (global-set-key (kbd "C-M-'") 'hydra-avy-cycle/body)
+#+end_src
+
+
+** Completion Hydra
+
+#+begin_src emacs-lisp
+  (global-set-key (kbd "C-.") #'completion-at-point)
+  (global-set-key (kbd "M-/") #'dabbrev-completion)
+  (global-set-key (kbd "C-M-/") #'dabbrev-expand)
+#+end_src
+
+
+  #+begin_src emacs-lisp
+  (defhydra hydra-complete ()
+  ("p" completion-at-point "cap")
+  ("t" complete-tag "complete tag")
+  ("h" cape-history "complete from history")
+  ("f" cape-file "complete filename")
+  ("k" cape-keyword "keyword")
+  ("s" cape-symbol "symbol")
+  ("/" cape-dabbrev "dynamic abbreviation")
+  ("a" cape-abbrev "abbreviation")
+  ("i" cape-ispell "spelling dictionary")
+  ("w" cape-dict "dictionary")
+  ("\\" cape-tex "cap")
+  ("&" cape-sgml "sgml symbol")
+  ("r" cape-rfc1345 "symbol defined in RFC1345")
+  )
+  #+end_src
+
+** Consult Hydra
+  #+begin_src emacs-lisp
+
+  (defhydra hydra-consult ()
+           ("i"     consult-imenu)
+	   ("b"     consult-project-buffer)
+	   ("b"     consult-buffer)
+	   ("r"     consult-recent-file)
+	   ("B"     consult-bookmark)
+	   ("h"     consult-ripgrep)
+	   ("y"     consult-yank-pop)
+	   ("C-h a" consult-apropos)
+	   )
+#+end_src
+
+** Toggle Hydra
+#+begin_src emacs-lisp
+      (defhydra hydra-toggle ()
+      ("Basic"
+       ("t" modus-themes-toggle "change theme" :toggle t)
+       ("c" flyspell-mode "spell check" :toggle t)
+       ("w" whitespace-mode "whitespaces" :toggle t)
+       ("l" global-page-break-lines-mode "page break lines" :toggle t)
+       )
+      ("Highlight"
+       ("h p" show-paren-mode "paren" :toggle t)
+       )
+      ("Program"
+       ("f" flycheck-mode "flycheck" :toggle t)
+       ("F" flymake-mode "flymake" :toggle t)
+       ("_" subword-mode "subword" :toggle t)
+       ("W" which-function-mode "which function" :toggle t)
+       )
+      )
+#+end_src
+      ("Highlight"
+;;       ("h l" global-hl-line-mode "line" :toggle t)
+  ;;     ("h s" symbol-overlay-mode "symbol" :toggle t)
+  ;;     ("h r" rainbow-mode "rainbow" :toggle t)
+  ;;     ("h d" rainbow-delimiters-mode "delimiter" :toggle t)
+  ;;     ("h i" highlight-indent-guides-mode "indent" :toggle t)
+      ("Program"
+   ;;    ("p" smartparens-mode "smart parenthesis" :toggle t)
+  ;;     ("E" toggle-debug-on-error "debug on error" :toggle (default-value 'debug-on-error))
+  ;;     ("v" global-diff-hl-mode "gutter" :toggle t)
+  ;;     ("V" diff-hl-flydiff-mode "live gutter" :toggle t)
+  ;;     ("M" diff-hl-margin-mode "margin gutter" :toggle t)
+  ;;     ("D" diff-hl-dired-mode "dired gutter" :toggle t)
+#+end_src
+
+** Project(ile)
+#+begin_src emacs-lisp
+  (defhydra hydra-projectile (:color teal
+                              :hint nil)
+    "
+       PROJECTILE: %(projectile-project-root)
+
+       Find File            Search/Tags          Buffers                Cache
+  ------------------------------------------------------------------------------------------
+  _s-f_: file            _g_: (rip)grep        _i_: Ibuffer           _c_: cache clear
+   _ff_: file dwim     _s-g_: generate tags    _b_: switch to buffer  _z_: cache current
+   _fd_: file curr dir   _o_: multi-occur      _K_: Kill all buffers
+    _r_: recent file     _t_: find tag
+    _d_: dir
+  "
+    ("g"   projectile-ripgrep)
+    ("i"   projectile-ibuffer)
+    ("b"   projectile-switch-to-buffer)
+    ("K"   projectile-kill-buffers)
+    ("c"   projectile-invalidate-cache)
+    ("z"   projectile-cache-current-file)
+    ("d"   projectile-find-dir)
+    ("s-f" projectile-find-file)
+    ("ff"  projectile-find-file-dwim)
+    ("fd"  projectile-find-file-in-directory)
+    ("r"   projectile-recentf)
+    ("s-t" projectile-regenerate-tags "generate/update tags")
+    ("t"   projectile-find-tag        "find tags")
+    ("o"   projectile-multi-occur)
+    ("p"   projectile-switch-project "switch project")
+    ("SPC"   nil "cancel" :color blue))
+
+  (global-set-key [(shift f9)] 'hydra-projectile/body)
+#+end_src
+
+
+** Windows
+#+begin_src emacs-lisp
+  (require 'winner)
+  (use-package ace-window
+     :ensure t
+  )
+#+end_src
+
+#+begin_src emacs-lisp
+    (defhydra hydra-window (:color red
+                            :hint nil)
+      "
+     Split: _v_ert      _x_horz
+    Delete: _o_nly      _d_window
+  size (h): _>_enlarge  _<_shrink
+  size (v): _+_enlarge  _-_shrink
+      size: _m_aximize
+    change: _h_         _l_
+    change: _j_         _k_
+      Misc: _u_ndo      _r_edo
+      Swap: _s_wap
+
+  "
+         ("h" windmove-left )
+         ("j" windmove-down )
+         ("k" windmove-up )
+         ("l" windmove-right )
+         ("<" (enlarge-window-horizontally -1))
+         (">" (enlarge-window-horizontally 1))
+         ("+" (enlarge-window 1))
+         ("-" (enlarge-window -1))
+         ("v" (lambda ()
+                (interactive)
+                (split-window-right)
+                (windmove-right))
+             )
+         ("x" (lambda ()
+                (interactive)
+                (split-window-below)
+                (windmove-down))
+             )
+         ("s" (lambda ()
+                (interactive)
+                (ace-window 4)
+                (add-hook 'ace-window-end-once-hook
+                          'hydra-window/body)))
+         ("d" delete-window)
+         ("o" delete-other-windows)
+         ("m" ace-maximize-window)
+         ("u" (progn
+                (winner-undo)
+                (setq this-command 'winner-undo))
+         )
+         ("r" winner-redo)
+         ("SPC" nil "quit")
+         )
+#+end_src
+
+
+
+** Quick sort dired buffers via hydra
+
+#+begin_src emacs-lisp
+  (use-package dired-quick-sort
+    :bind (:map dired-mode-map
+           ("C-c s" . hydra-dired-quick-sort/body)))
+#+end_src
+
+** TODO Org-Templates
+#+begin_src emacs-lisp
+
+  (defhydra hydra-org-template (:color blue :hint nil)
+      "
+   _c_enter  _q_uote     _e_macs-lisp    _L_aTeX:
+   _l_atex   _E_xample   _p_erl          _i_ndex:
+   _a_scii   _v_erse     _P_erl tangled  _I_NCLUDE:
+   _s_rc     _n_ote      plant_u_ml      _H_TML:
+   _h_tml    ^ ^         ^ ^             _A_SCII:
+  "
+      ("s" (hot-expand "<s"))
+      ("E" (hot-expand "<e"))
+      ("q" (hot-expand "<q"))
+      ("v" (hot-expand "<v"))
+      ("n" (hot-expand "<not"))
+      ("c" (hot-expand "<c"))
+      ("l" (hot-expand "<l"))
+      ("h" (hot-expand "<h"))
+      ("a" (hot-expand "<a"))
+      ("L" (hot-expand "<L"))
+      ("i" (hot-expand "<i"))
+      ("e" (hot-expand "<s" "emacs-lisp"))
+      ("p" (hot-expand "<s" "python"))
+      ("P" (hot-expand "<s" "python" ":results output :exports both :shebang \"#!/usr/bin/env python\"\n"))
+      ("I" (hot-expand "<I"))
+      ("H" (hot-expand "<H"))
+      ("A" (hot-expand "<A"))
+      ("<" self-insert-command "ins")
+      ("o" nil "quit"))
+
+    (require 'org-tempo) ; Required from org 9 onwards for old template expansion
+    ;; Reset the org-template expnsion system, this is need after upgrading to org 9 for some reason
+    (setq org-structure-template-alist (eval (car (get 'org-structure-template-alist 'standard-value))))
+    (defun hot-expand (str &optional mod header)
+      "Expand org template.
+
+  STR is a structure template string recognised by org like <s. MOD is a
+  string with additional parameters to add the begin line of the
+  structure element. HEADER string includes more parameters that are
+  prepended to the element after the #+HEADER: tag."
+      (let (text)
+        (when (region-active-p)
+          (setq text (buffer-substring (region-beginning) (region-end)))
+          (delete-region (region-beginning) (region-end))
+          (deactivate-mark))
+        (when header (insert "#+HEADER: " header) (forward-line))
+        (insert str)
+        (org-tempo-complete-tag)
+        (when mod (insert mod) (forward-line))
+        (when text (insert text))))
+
+    (define-key org-mode-map "<"
+      (lambda () (interactive)
+        (if (or (region-active-p) (looking-back "^"))
+            (hydra-org-template/body)
+          (self-insert-command 1))))
+
+    (eval-after-load "org"
+      '(cl-pushnew
+      '("not" . "note")
+        org-structure-template-alist))
+#+end_src
+
+
+** Rectangle
+#+begin_src emacs-lisp
+    (defhydra hydra-rectangle (:body-pre (rectangle-mark-mode 1)
+                             :color pink
+                             :post (deactivate-mark))
+    "
+    ^_k_^     _d_elete    _s_tring
+     _l_      _o_k        _y_ank
+    ^_j_^     _n_ew-copy  _r_eset
+  ^^^^        _e_xchange  _u_ndo
+  ^^^^        ^ ^         _p_aste
+  "
+      ("h" backward-char nil)
+      ("l" forward-char nil)
+      ("k" previous-line nil)
+      ("j" next-line nil)
+      ("e" exchange-point-and-mark nil)
+      ("n" copy-rectangle-as-kill nil)
+      ("d" delete-rectangle nil)
+      ("r" (if (region-active-p)
+               (deactivate-mark)
+             (rectangle-mark-mode 1)) nil)
+      ("y" yank-rectangle nil)
+      ("u" undo nil)
+      ("s" string-rectangle nil)
+      ("p" kill-rectangle nil)
+      ("SPC" nil "quit"))
+#+end_src
+
+** Websearch
+stolen from aboabo and adapted
+
+#+begin_src emacs-lisp
+  (defun ora-search-query (fmt)
+  (let ((query (if (region-active-p)
+                   (buffer-substring-no-properties (region-beginning) (region-end))
+                 (read-from-minibuffer "Search for: "))))
+    (browse-url (format fmt query))))
+
+(defhydra hydra-web-search (:exit t)
+  ("w" (ora-search-query "https://en.wikipedia.org/w/index.php?search=%s") "wiki")
+  ("g" (ora-search-query "https://github.com/search?ref=simplesearch&q=%s") "github")
+  ("m" (ora-search-query "https://www.google.com/maps/search/%s?hl=en&source=opensearch") "maps")
+  ("r" (ora-search-query "https://www.reddit.com/search?q=%s") "reddit")
+  ("t" (ora-search-query "https://twitter.com/search?q=%s") "twitter")
+  ("y" (ora-search-query "https://www.youtube.com/results?search_query=%s&page={startPage?}&utm_source=opensearch") "youtube")
+  ("SPC" nil "quit"))
+#+end_src
+
+
+
+** TODO Registers
+
+#+begin_src emacs-lisp
+(defhydra hydra-registers (:color blue :hint nil)
+    "
+Register commands
+_s_: Save point                 _n_: Number to register
+_j_: Jump to register         _i_/_+_: Increment number in register
+_y_: Copy to register           _h_: Show registers
+_p_: Insert from register       _w_: Window config to register
+"
+    ("s" point-to-register)
+    ("j" jump-to-register)
+    ("y" copy-to-register)
+    ("p" insert-register)
+    ("n" number-to-register)
+    ("i" increment-register)
+    ("+" increment-register)
+    ("w" window-configuration-to-register)
+    ("q" nil))
+;; The function to activate this hydra is hydra-registers/main'
+#+end_src
+
+
+** TODO Template
+#+begin_src emacs-lisp
+#+end_src
+
+
+* Bye
+
+#+begin_src emacs-lisp
+;;; keybindings.el ends here
+#+end_src

@@ -1,0 +1,8 @@
+* Linux
+
+
+* Bye
+
+#+begin_src emacs-lisp
+;;; linux-setup.el ends here
+#+end_src

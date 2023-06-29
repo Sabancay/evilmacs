@@ -1,0 +1,144 @@
+* LSP (eglot)
+
+#+begin_src emacs-lisp
+  (use-package eglot
+      :defer t
+      :commands (eglot eglot-ensure)
+        :hook (
+               ;;(python-mode . eglot-ensure)
+               (julia-mode . eglot-ensure)
+               )
+        :bind (:map eglot-mode-map
+                    ("C-<down-mouse-1>" . #'xref-find-definitions)
+                    ("C-S-<down-mouse-1>" . #'xref-find-references)
+                    ("C-c a r" . #'eglot-rename)
+                    ("C-c C-c" . #'eglot-code-actions))
+        :custom
+        (eglot-confirm-server-initiated-edits nil)
+        (eglot-autoshutdown t)
+        (eglot-send-changes-idle-time 0.1)
+        :config
+        (defun pt/add-eglot-to-prog-menu (old startmenu click)
+          "Add useful Eglot functions to the prog-mode context menu."
+          (let ((menu (funcall old startmenu click))
+                (identifier (save-excursion
+                              (mouse-set-point click)
+                              (xref-backend-identifier-at-point
+                               (xref-find-backend)))))
+            (when identifier
+              (define-key-after menu [eglot-find-impl]
+                `(menu-item "Find Implementations" eglot-find-implementation
+                            :help ,(format "Find implementations of `%s'" identifier))
+                'xref-find-ref))
+            menu))
+        (advice-add 'prog-context-menu :around #'pt/add-eglot-to-prog-menu)
+        (setq eglot-stay-out-of '(company))
+        )
+
+      (use-package consult-eglot
+        :config
+        (defun pt/consult-eglot ()
+          (interactive)
+          (let ((completion-styles '(emacs22)))
+            (call-interactively #'consult-eglot-symbols)))
+        :bind (:map eglot-mode-map ("s-t" . #'pt/consult-eglot)))
+
+
+  (defun my/eglot-capf ()
+    (setq-local completion-at-point-functions
+                (list (cape-super-capf
+                       #'eglot-completion-at-point
+                       #'cape-file))))
+
+  (add-hook 'eglot-managed-mode-hook #'my/eglot-capf)
+#+end_src
+
+
+* Julia
+
+#+begin_src emacs-lisp
+
+  (use-package julia-mode
+    :ensure t
+    :init (setenv "JULIA_NUM_THREADS" "6")
+    :mode
+    ("\\.jl\\'"  . julia-mode)
+    :config
+    (add-hook 'julia-mode-hook 'eglot-jl-init)
+    (add-to-list 'julia-arguments "-t12")
+    (add-to-list 'julia-arguments "--project=\".\"")
+    )
+
+    (when sys/linuxp
+      (use-package julia-repl
+        :ensure t
+        :commands julia-repl-mode
+        :config
+        (julia-repl-set-terminal-backend 'vterm)
+        (setq julia-repl-switches "-t12 -q")
+        )
+
+      (defun my/julia-repl-keys ()
+        (define-key julia-mode-map (kbd "C-c C-r")  '("send region or line" . julia-repl-send-region-or-line))
+        (define-key julia-mode-map (kbd "<S-return>")  'julia-repl-send-region-or-line)
+        (define-key julia-mode-map (kbd "<C-S-return>")  'julia-repl-includet-buffer)
+        (define-key julia-mode-map (kbd "<C-M-return>")  'julia-repl-send-buffer)
+        )
+
+      (add-hook 'julia-repl-mode-hook #'my/julia-repl-keys)
+      (add-hook 'julia-mode-hook 'julia-repl-mode)
+      )
+
+
+    (use-package eglot-jl
+          :after eglot
+          :commands eglot-jl-init
+          :config
+          (setq eglot-jl-julia-command julia-program)
+          (setq eglot-connect-timeout 100)
+          (cl-defmethod project-root ((project (head julia)))
+            (cdr project))
+          )
+#+end_src
+
+* Python
+
+(defvar myPackages
+
+  '(better-defaults                 ;; Set up some better Emacs defaults
+    elpy                            ;; Emacs Lisp Python Environment
+;;    flycheck                        ;; On the fly syntax checking
+    py-autopep8                     ;; Run autopep8 on save
+    blacken                         ;; Black formatting on save
+    )
+
+  )
+
+#+begin_src emacs-lisp
+  (use-package elpy
+    :ensure t
+    :defer t
+    :init
+    (advice-add 'python-mode :before 'elpy-enable)
+  :config
+  (when (executable-find "ipython")
+    (setq python-shell-interpreter "ipython"
+          python-shell-interpreter-args "-i --simple-prompt"))
+    )
+
+  (add-hook 'python-mode-hook #'tree-sitter-mode)
+#+end_src
+
+
+;;#+begin_src emacs-lisp
+(use-package python-mode
+  :defer
+  :after eglot
+  :config
+  (when (executable-find "ipython3")
+    (setq python-shell-interpreter "ipython3"
+          python-shell-interpreter-args "--simple-prompt --classic"))
+)
+;;#+end_src
+
+;;; extended-setup.el ends here

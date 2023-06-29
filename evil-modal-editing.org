@@ -1,0 +1,104 @@
+* Vim-style Editing: Evil-mode
+#+begin_src emacs-lisp
+  (setq evil-emacs-state-cursor  '("blue" box))
+  (setq evil-normal-state-cursor '("gray" box))
+  (setq evil-visual-state-cursor '("red"  bar))
+  (setq evil-insert-state-cursor '("black" bar))
+  (setq evil-replace-state-cursor '("red" box))
+  (setq evil-motion-state-cursor '("gray" box))
+
+  (use-package evil
+    :ensure t
+    :init
+    (setq evil-want-integration t)
+    (setq evil-want-keybinding nil)
+    :config
+    (evil-mode 1))
+
+  (shut-up (use-package evil-collection
+             :ensure t
+             :after evil
+             :config
+             (evil-collection-init))
+           )
+#+end_src
+
+Prefer using native Emacs over evil-collection:
+
+#+begin_src emacs-lisp
+  (dolist (mode '(
+                  dired-mode
+                  proced
+                  ibuffer-mode
+                  ;; eshell-mode
+                  ;; term-mode
+                  ))
+    (add-to-list 'evil-emacs-state-modes mode))
+#+end_src
+
+
+Use vim style search.
+
+#+begin_src emacs-lisp
+  (evil-select-search-module 'evil-search-module 'evil-search)
+#+end_src
+
+* Evil-Mode - more features
+#+begin_src emacs-lisp
+(use-package evil-commentary
+  :ensure t
+  :defer 1
+  :diminish
+  :config (evil-commentary-mode))
+#+end_src
+
+
+#+begin_src emacs-lisp
+(use-package evil-surround
+  :ensure t
+  :defer 1
+  :config (global-evil-surround-mode 1))
+#+end_src
+
+*** Searching buffers
+#+begin_src emacs-lisp
+  (use-package evil-visualstar
+    :ensure t
+    :defer 1
+    :config (global-evil-visualstar-mode)
+)
+#+end_src
+
+
+* Easymotion (avy for evil-mode)
+#+begin_src emacs-lisp
+  (use-package evil-easymotion
+	       )
+#+end_src
+
+
+* Evil-Textobj
+#+begin_src emacs-lisp
+  (use-package evil-textobj-line   :ensure t :defer 1)
+  (use-package evil-textobj-syntax :ensure t :defer 1)
+  (use-package evil-textobj-tree-sitter :ensure t)
+#+end_src
+
+Visual-Mode map:
+;; bind `function.inner`(function block without name and args) to `f` for use in things like `vif`, `yif`
+#+begin_src emacs-lisp
+  (define-key evil-outer-text-objects-map "f" (evil-textobj-tree-sitter-get-textobj "function.outer"))
+  (define-key evil-inner-text-objects-map "f" (evil-textobj-tree-sitter-get-textobj "function.inner"))
+  (define-key evil-outer-text-objects-map "a" (evil-textobj-tree-sitter-get-textobj ("conditional.outer" "loop.outer")))
+#+end_src
+
+#+begin_src emacs-lisp
+#+end_src
+
+
+
+* Bye
+
+#+begin_src emacs-lisp
+;;; modal-editing.el ends here
+#+end_src

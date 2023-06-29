@@ -1,0 +1,83 @@
+* Windows Setup
+At this point, all basic paths are set already.
+
+** Good to know
+  (setq w32-pass-lwindow-to-system nil) ;; prevent single keypress from activating Start Menu
+  (setq w32-lwindow-modifier 'nil)      ;; make sure it's not used as a modifier
+
+  (define-key key-translation-map (kbd "<lwindow>") 'event-apply-super-modifier)
+  (define-key key-translation-map (kbd "<apps>") 'event-apply-alt-modifier)
+
+  (global-set-key (kbd "s-k") 'kill-whole-line)
+
+** Shells
+#+begin_src emacs-lisp
+(defun run-cmd()
+      (interactive)
+      (let ((shell-file-name "cmd.exe"))
+            (shell "*cmd.exe*")))
+
+(defun run-bash ()
+  (interactive)
+      (let ((shell-file-name "bash.exe"))
+            (shell "*bash*")))
+#+end_src
+
+** Tramp
+
+#+begin_src emacs-lisp
+(require 'tramp)
+(setq tramp-verbose 8)
+;; Tramp - Probleme:
+;; -- plink und PUBLIC KEY Authentifizierung: benoetigt den Start des PuTTy-Keyservers peageant
+;; -- Nutzung des Proxy-Mechanismusses nur ueber C-x C-f /plink:server|sudo:user@server:~
+;; -- Multihops per "tramp-default-proxies-alist" funktionieren nicht, das Handbuch hat Fehler (z.B. Verwendung der Quotes
+;;(setq tramp-shell-prompt-pattern "^[^#$>\n]*[#$%>)] *")
+
+(when (eq system-type 'windows-nt)
+  (setq tramp-default-method "plink")
+  (setq tramp-auto-save-directory (concat emacsen-dir "tmp"))
+   )
+
+(setq vc-ignore-dir-regexp
+                (format "\\(%s\\)\\|\\(%s\\)"
+                        vc-ignore-dir-regexp
+                        tramp-file-name-regexp))
+#+end_src
+
+
+#+begin_src emacs-lisp
+
+(if (string= (system-name) "EPS-A9004")
+  (progn
+  (defun connect-dm06 ()
+    (interactive)
+    (dired "/plink:Volker.Edelmann@dm06iv1s:~/"))
+
+  (defun connect-telwls01 ()
+    (interactive)
+    (dired "/plink:Volker.Edelmann@telwls01i:~/"))
+
+  (defun connect-telwls01-wls ()
+    (interactive)
+     (dired "/plinkx:telwls01i-wls_via_proxy:~/"))   ;; use PuTTy configuration
+
+  (defun connect-telwls01-quack ()
+    (interactive)
+     (dired "/plinkx:telwls01i-quack_via_proxy:~/")) ;; use PuTTy configuration
+  )
+)
+
+#+end_src
+
+#+end_src
+
+
+
+* Linux
+
+* Bye
+
+#+begin_src emacs-lisp
+;;; os-setup.el ends here
+#+end_src

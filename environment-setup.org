@@ -1,0 +1,62 @@
+* Windows
+#+begin_src emacs-lisp
+  (when sys/win32p
+    (setq user-full-name "Volker Edelmann"
+          user-mail-address "volker.edelmann@deutschepost.de")
+    ;; spelling
+    (setq german-dict "de_DE"
+          english-dict "en_GB")
+    )
+#+end_src
+
+** Paths and programs
+
+#+begin_src emacs-lisp
+  (when sys/win32p
+    (let ((my-prog-dir "C:/ved/Programme/"))
+      (setq vc-git-program (concat my-prog-dir "/git/cmd/git.exe"))
+      (setq magit-git-executable vc-git-program)
+      (setq julia-program (concat my-prog-dir "julia-1_6-lts/bin/julia.exe"))
+      (setq org-re-reveal-root "file:///C/ved/Programme/reveal.js")
+      (setq inferior-ess-r-program (concat my-prog-dir "/R"))
+      )
+    )
+  (when sys/win32p
+      (setq project-search-path '("~/repository" "~/repository_test" "~/projects/"))
+  )
+#+end_src
+
+** Server
+The directory, where the server-information is stored, is read from the environment.
+#+begin_src emacs-lisp
+    (when sys/win32p
+      (setq server-auth-dir (getenv "EMACS_SERVER_DIR"))
+    )
+#+end_src
+
+
+
+* Linux
+#+begin_src emacs-lisp
+   (when sys/linuxp
+     (setq user-full-name "Volker Edelmann"
+         user-mail-address "vedelmann@gmx.de")
+     ;; spelling
+     (setq german-dict "de_DE"
+           english-dict "english")
+
+     (setq julia-program "/opt/tools/julia/bin/julia")
+     (setq julia-snail-executable "/opt/tools/julia/bin/julia")
+  )
+  (when sys/linuxp
+      (setq project-search-path '("~/projects/" "~/datascience/"))
+  )
+
+#+end_src
+
+
+* Bye
+
+#+begin_src emacs-lisp
+;;; environment-setup.el ends here
+#+end_src

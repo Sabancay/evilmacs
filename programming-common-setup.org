@@ -1,0 +1,367 @@
+﻿* Speedbar
+Have the speedbar inside the frame.
+
+#+begin_src emacs-lisp
+(use-package sr-speedbar)
+
+;; fix so speedbar is in same window
+(with-eval-after-load "speedbar"
+  (autoload 'sr-speedbar-toggle "sr-speedbar" nil t)
+  (global-set-key (kbd "S-C-s") 'sr-speedbar-toggle)
+  )
+#+end_src
+
+#+begin_src emacs-lisp
+  (use-package speedbar-git-respect
+    :ensure t
+    :config
+    (speedbar-git-respect-mode t)
+  )
+#+end_src
+
+
+** TODO Emacs 29: tree-sitter
+The future
+
+* Parenthesis
+Mark [, {, (:
+#+begin_src emacs-lisp
+(use-package rainbow-delimiters)
+
+(use-package rainbow-mode
+  :config
+  (add-hook 'prog-mode-hook #'rainbow-mode)
+  (diminish 'rainbow-mode))
+#+end_src
+
+* Snippets
+
+I am a slow typer, so I got extremely used to text-expansion snippets. I also think they're extremely underrated for learning a new language's idioms: one of the reasons I was able to get up to speed so fast with Rails (back in the 1.2 days) was because the TextMate snippets indicated pretty much everything you needed to know about things like ActiveRecord.
+
+#+begin_src emacs-lisp
+  (use-package yasnippet
+    :defer 15 ;; takes a while to load, so do it async
+    :diminish yas-minor-mode
+    :config (yas-global-mode)
+    :custom (yas-prompt-functions '(yas-completing-prompt)))
+
+  (use-package yasnippet-snippets)
+#+end_src
+
+* IDE features
+** Compilation
+#+begin_src emacs-lisp
+    (use-package compile
+      :custom
+      (compilation-read-command nil "Don't prompt every time.")
+      (compilation-scroll-output 'first-error))
+
+  (require 'ansi-color)
+  (defun prelude-colorize-compilation-buffer ()
+    "Colorize a compilation mode buffer."
+    (interactive)
+    ;; we don't want to mess with child modes such as grep-mode, ack, ag, etc
+    (when (eq major-mode 'compilation-mode)
+      (let ((inhibit-read-only t))
+        (ansi-color-apply-on-region (point-min) (point-max)))))
+
+  (add-hook 'compilation-filter-hook #'prelude-colorize-compilation-buffer)
+#+end_src
+
+
+
+** Project navigation
+
+Projectile has better documentation than project.el.
+
+#+begin_src emacs-lisp
+  (use-package projectile
+    :ensure t
+    :init
+    (setq projectile-project-search-path project-search-path)
+    :config
+    (setq projectile-completion-system 'default) ;; vertico
+    (setq projectile-switch-project-action #'projectile-find-dir)
+    (setq projectile-find-dir-includes-top-level t)
+    (define-key projectile-mode-map (kbd "C-c C-p") 'projectile-command-map)
+    (projectile-mode +1))
+#+end_src
+
+#+begin_src emacs-lisp
+  (use-package projectile-speedbar
+    :ensure t
+  )
+  (global-set-key (kbd "M-<f2>") 'projectile-speedbar-open-current-buffer-in-tree)
+#+end_src
+
+
+I use ~direnv~ to manage per-project environment variables. The Emacs direnv mode is quite sophisticated, automatically setting all relevant variables for you when you go in and out of a particular project.
+
+#+begin_src emacs-lisp
+  (use-package direnv
+    :config (direnv-mode)
+    :custom (direnv-always-show-summary nil))
+#+end_src
+
+** VC - Source Code Administration Software
+
+*** Magit
+
+Magit is one of the top three reasons anyone should use Emacs. What a brilliant piece of software it is. I never thought I'd be faster with a git GUI than with the command line, since I've been using git for thirteen years at this point, but wonders really never cease. Magit is as good as everyone says, and more.
+
+
+#+begin_src emacs-lisp
+  (use-package magit
+    :diminish magit-auto-revert-mode
+    :diminish auto-revert-mode
+    :bind (("C-c g" . #'magit-status))
+    :custom
+    (when sys/win32p
+      (magit-git-executable "c:/ved/Programme/git/cmd/git.exe")
+    )
+    (magit-repository-directories '(("~/projects" . 1)))
+    (magit-list-refs-sortby "-creatordate")
+    :config
+    (defun pt/commit-hook () (set-fill-column 80))
+    (add-hook 'git-commit-setup-hook #'pt/commit-hook)
+    (add-to-list 'magit-no-confirm 'stage-all-changes))
+#+end_src
+
+
+*** Subversion
+
+#+begin_src emacs-lisp
+(when (executable-find "svn")
+  (require 'psvn)
+  ;; switch off evil-mode
+  (evil-set-initial-state 'svn-status-mode 'emacs)
+)
+#+end_src
+
+*** VC Tools
+
+Magit also allows integration with GitHub and other such forges.
+
+#+begin_src emacs-lisp
+;;  (use-package forge
+;;    :after magit)
+#+end_src
+
+
+#+begin_src emacs-lisp
+;;  (use-package embark-vc
+;;     :after
+;;      embark
+;;      magit
+;;  )
+#+end_src
+
+I'm trying out this git-status-in-the-fringe package, which looks fairly visually appealing.
+
+#+begin_src emacs-lisp
+  (use-package diff-hl
+    :config
+    (global-diff-hl-mode)
+    (diff-hl-flydiff-mode)
+    (diff-hl-margin-mode)
+    (add-hook 'magit-pre-refresh-hook 'diff-hl-magit-pre-refresh)
+    (add-hook 'magit-post-refresh-hook 'diff-hl-magit-post-refresh)
+    :custom
+    (diff-hl-disable-on-remote t)
+    (diff-hl-margin-symbols-alist
+     '((insert . " ")
+       (delete . " ")
+       (change . " ")
+       (unknown . "?")
+       (ignored . "i"))))
+#+end_src
+
+** Syntax-Checker
+*** Flycheck
+#+begin_src emacs-lisp
+  (use-package flycheck
+    :ensure t
+    :config
+    (add-hook 'after-init-hook #'global-flycheck-mode)
+  )
+#+end_src
+
+
+*** Flymake
+The built-in ~flymake~ does a great job, and ~eglot~ builds upon it.
+
+#+begin_src emacs-lisp
+  (use-package flymake
+    :ensure t
+    :config
+    (setq elisp-flymake-byte-compile-load-path load-path)
+    :hook ((emacs-lisp-mode . flymake-mode)))
+#+end_src
+
+
+#+begin_src emacs-lisp
+  (use-package xref
+    :pin gnu
+    :custom (xref-auto-jump-to-first-xref t)
+    :bind (("s-r" . #'xref-find-references)
+           ("C-<down-mouse-1>" . #'xref-find-definitions)
+           ("C-S-<down-mouse-1>" . #'xref-find-references)
+           ("C-<down-mouse-2>" . #'xref-go-back)
+           ("s-[" . #'xref-go-back)
+           ("s-]" . #'xref-go-forward)))
+
+  (use-package eldoc
+    :pin gnu
+    :diminish
+    :bind ("s-d" . #'eldoc)
+    :custom
+    (eldoc-echo-area-prefer-doc-buffer t)
+    (eldoc-echo-area-use-multiline-p t))
+#+end_src
+
+** Debugging
+
+#+begin_src emacs-lisp
+;; (use-package dap-mode
+;;   :bind
+;;   (:map dap-mode-map
+;;    ("C-c b b" . dap-breakpoint-toggle)
+;;    ("C-c b r" . dap-debug-restart)
+;;    ("C-c b l" . dap-debug-last)
+;;    ("C-c b d" . dap-debug))
+;;   :init
+;;   (defun pt/turn-on-debugger ()
+;;     (interactive)
+;;     (dap-mode)
+;;     (dap-auto-configure-mode)
+;;     (dap-ui-mode)
+;;     (dap-ui-controls-mode)
+;;     )
+;;   )
+#+end_src
+
+
+* Java
+** semantic/ecb
+Java is supported by semantic.
+ #+begin_src emacs-lisp
+   (add-hook 'java-mode-hook 'semantic-mode)
+
+  (setq checkstyle-jar (expand-file-name (concat emacsen-dir "/java/checkstyle-10.10.0-all.jar")))
+  (setq checkstyle-cmd (concat "-jar " checkstyle-jar " -f xml -c /google_checks.xml"))
+
+  (flycheck-define-checker java-checkstyle
+    " a java checker "
+     :command ("java" (eval checkstyle-cmd) source-inplace)
+     :error-parser flycheck-parse-checkstyle
+     :enable t
+     :modes (java-mode))
+ #+end_src
+
+
+* Data Science
+
+** CSV
+#+BEGIN_SRC emacs-lisp
+  (use-package csv-mode
+    :ensure t
+    :defer 110
+    :config
+    (add-hook 'csv-mode-hook 'csv-align-mode)
+    (add-to-list 'auto-mode-alist '("\\.[Cc][Ss][Vv]\\'" . csv-mode))
+    (autoload 'csv-mode "csv-mode"
+      "Major mode for editing comma-separated value files." t)
+  )
+#+END_SRC
+
+** Gnuplot
+#+begin_src emacs-lisp
+  (use-package gnuplot
+	       )
+  (use-package gnuplot-mode
+	       )
+(require 'gnuplot-context)
+(require 'ob-gnuplot)
+
+(defun my-gnuplot-mode-hook ()
+   "when using an english keyboard."
+   (message "use TeX symbols in gnuplot-mode!")
+   (setq-local default-input-method "TeX"))
+
+(add-hook 'gnuplot-mode-hook 'my-gnuplot-mode-hook)
+#+end_src
+
+** GraphViZ
+#+begin_src emacs-lisp
+    (use-package graphviz-dot-mode
+		 )
+  #+end_src
+
+*** Org-Babel
+#+begin_src emacs-lisp
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((R . t)
+     (julia . t)
+     (gnuplot . t)
+     (dot . t)
+     (python . t)
+     (emacs-lisp . t)
+     (shell . t)
+     (calc . t)
+     ))
+#+end_src
+
+
+* Miscellany
+** Google this
+Being able to Google something I'm looking at is really nice.
+
+** Make task
+Emacs can provide a nice interface for selecting ~make~ tasks.
+
+#+begin_src emacs-lisp
+  (use-package makefile-executor
+    :bind ("C-c M" . makefile-executor-execute-project-target))
+#+end_src
+
+** REST Client
+ ~restclient~ is a terrific interface for running HTTP requests against local or remote services.
+
+ #+begin_src emacs-lisp
+ (use-package restclient
+   :mode ("\\.restclient$" . restclient-mode))
+ #+end_src
+
+** Tramp
+TRAMP mode is excellent for editing files on a remote machine or Docker container, but it needs some TLC.
+
+#+begin_src emacs-lisp
+  (require 'tramp)
+  (setq remote-file-name-inhibit-locks t)
+
+  ;; Needs to be called from recentf's :init
+  ;; todo: make this into a use-package invocation
+  (defun pt/customize-tramp ()
+    (setq tramp-default-method "plink"
+          tramp-verbose 1
+          remote-file-name-inhibit-cache nil
+          tramp-use-ssh-controlmaster-options nil
+          tramp-default-remote-shell "/bin/bash"
+          tramp-connection-local-default-shell-variables
+          '((shell-file-name . "/bin/bash")
+            (shell-command-switch . "-c")))
+
+    (connection-local-set-profile-variables 'tramp-connection-local-default-shell-profile
+                                            '((shell-file-name . "/bin/bash")
+                                              (shell-command-switch . "-c")))
+    ;;(add-to-list 'tramp-remote-path 'tramp-own-remote-path)
+
+    )
+#+end_src
+
+* Bye
+
+#+begin_src emacs-lisp
+;;; programming-common-setup.el ends here
+#+end_src

@@ -1,0 +1,105 @@
+* Common
+** TODO assure
+
+ User lispy instead of paredit!
+
+#+begin_src emacs-lisp
+  (use-package lispy
+    :ensure t
+)
+#+end_src
+
+#+begin_src emacs-lisp
+  (use-package evil-lispy
+    :ensure t
+    :config
+    (add-hook 'emacs-lisp-mode-hook #'evil-lispy-mode)
+  (add-hook 'lisp-interaction-mode-hook #'evil-lispy-mode)
+  (add-hook 'ielm-mode-hook #'evil-lispy-mode)
+  (add-hook 'lisp-mode-hook #'evil-lispy-mode)
+  (add-hook 'eval-expression-minibuffer-setup-hook #'evil-lispy-mode)
+
+)
+#+end_src
+
+!! old !!
+(use-package paredit
+  :ensure t
+  :config
+  (add-hook 'emacs-lisp-mode-hook #'paredit-mode)
+  ;; enable in the *scratch* buffer
+  (add-hook 'lisp-interaction-mode-hook #'paredit-mode)
+  (add-hook 'ielm-mode-hook #'paredit-mode)
+  (add-hook 'lisp-mode-hook #'paredit-mode)
+  (add-hook 'eval-expression-minibuffer-setup-hook #'paredit-mode)
+  (diminish 'paredit-mode "()"))
+
+
+* ELisp
+for an edebug setup see steal-from/kaushalmodi/setup-files/setup-elisp.el
+
+#+begin_src emacs-lisp
+  (defun crux-start-or-switch-to (function buffer-name)
+    "Invoke FUNCTION if there is no buffer with BUFFER-NAME.
+  Otherwise switch to the buffer named BUFFER-NAME.  Don't clobber
+  the current buffer."
+    (if (not (get-buffer buffer-name))
+        (progn
+          (split-window-sensibly (selected-window))
+          (other-window 1)
+          (funcall function))
+      (switch-to-buffer-other-window buffer-name)))
+
+  (require 'lisp-mode)
+
+  (defun bozhidar-visit-ielm ()
+    "Switch to default `ielm' buffer.
+    Start `ielm' if it's not already running."
+    (interactive)
+    (crux-start-or-switch-to 'ielm "*ielm*"))
+
+  (add-hook 'emacs-lisp-mode-hook #'rainbow-delimiters-mode)
+  (define-key emacs-lisp-mode-map (kbd "C-c C-z") #'bozhidar-visit-ielm)
+  (define-key emacs-lisp-mode-map (kbd "C-c C-c") #'eval-defun)
+  (define-key emacs-lisp-mode-map (kbd "C-c C-b") #'eval-buffer)
+#+end_src
+
+* Guile (Scheme)
+#+begin_src emacs-lisp
+(use-package geiser-guile :ensure t)
+(use-package flycheck-guile :ensure t)
+#+end_src
+
+* Clojure
+
+#+begin_src emacs-lisp
+
+(use-package clojure-mode
+  :config
+  ;; teach clojure-mode about some macros that I use on projects like
+  ;; nREPL and Orchard
+  (define-clojure-indent
+    (returning 1)
+    (testing-dynamic 1)
+    (testing-print 1))
+
+  (add-hook 'clojure-mode-hook #'paredit-mode)
+  (add-hook 'clojure-mode-hook #'subword-mode)
+  (add-hook 'clojure-mode-hook #'rainbow-delimiters-mode))
+
+(use-package inf-clojure
+  :config
+  (add-hook 'inf-clojure-mode-hook #'paredit-mode)
+  (add-hook 'inf-clojure-mode-hook #'rainbow-delimiters-mode))
+
+(use-package cider
+  :config
+  (setq lispy-compat t)
+  (setq nrepl-log-messages t)
+  (add-hook 'cider-repl-mode-hook #'paredit-mode)
+  (add-hook 'cider-repl-mode-hook #'rainbow-delimiters-mode))
+
+(use-package flycheck-joker)
+#+end_src
+
+;;; extended-setup.el ends here

@@ -1,0 +1,942 @@
+* Basis
+#+begin_src emacs-lisp
+  (setq frame-title-format '("" "%b - " this-emacs "@" system-name))
+#+end_src
+
+** Preliminaries
+
+We have to be sure to set *lexical-binding* /in/ ~the~ file header to opt into Emacs lexical scope. Emacs Lisp really isn't the worst language once you pull in the community's /de facto/ standard libraries, but you need lexical scope.
+
+#+begin_src emacs-lisp
+  ;; -*- coding: utf-8; lexical-binding: t -*-
+#+end_src
+
+I used to set ~use-package-always-ensure~ here, but now that is conditional, as always-ensure means that we hit the network every time on startup. Seems unnecessary. As such, we set it in the [[https://github.com/patrickt/emacs/blob/master/init.el][~init.el~]] that bootstraps this whole enterprise if ~use-package~ wasn't installed, which is only true on a fresh install or wiped ~elpa~ directory.
+
+Many of Emacs's defaults are ill-suited for my purposes. Garbage collection threshold is adjusted in ~init.el~.
+We also need to bump the number of bindings/unwind-protects (~max-specpdl-size~).
+
+#+begin_src emacs-lisp
+  (setq max-specpdl-size 5000)
+#+end_src
+
+
+
+With this auxiliary package for ~use-package~, we can instruct Emacs that a given package depends on the presence of a system tool. It will even install this tool with the system's recommended package manager.
+
+#+begin_src emacs-lisp
+  (use-package use-package-ensure-system-package)
+#+end_src
+
+#+begin_src emacs-lisp
+  (defun display-startup-echo-area-message ()
+    "Override the normally tedious startup message."
+    (message "Welcome back to Emacs"))
+#+end_src
+
+
+** Fixing defaults
+
+Automatically revert buffers on change.
+
+#+begin_src emacs-lisp
+  (global-auto-revert-mode t)
+  (global-auto-revert-non-file-buffers t)
+  (setq auto-revert-verbose t)
+#+end_src
+
+
+Fixing Emacs's defaults is a nontrivial problem. We'll start with UI concerns.
+
+#+begin_src emacs-lisp
+  (setq
+   ;; No need to see GNU agitprop.
+   inhibit-startup-screen t
+   ;; No need to remind me what a scratch buffer is.
+   initial-scratch-message nil
+   ;; Double-spaces after periods is morally wrong.
+   sentence-end-double-space nil
+   ;; Never ding at me, ever.
+   ring-bell-function 'ignore
+   ;; Save existing clipboard text into the kill ring before replacing it.
+   save-interprogram-paste-before-kill t
+   ;; Prompts should go in the minibuffer, not in a GUI.
+   use-dialog-box nil
+   ;; Fix undo in commands affecting the mark.
+   mark-even-if-inactive nil
+   ;; Let C-k delete the whole line.
+   kill-whole-line t
+   ;; search should be case-sensitive by default
+   case-fold-search nil
+   ;; accept 'y' or 'n' instead of yes/no
+   ;; the documentation advises against setting this variable
+   ;; the documentation can get bent imo
+   use-short-answers t
+   ;; my source directory
+   default-directory "~/"
+   ;; eke out a little more scrolling performance
+   fast-but-imprecise-scrolling t
+   ;; prefer newer elisp files
+   load-prefer-newer t
+   ;; when I say to quit, I mean quit
+   confirm-kill-processes nil
+   ;; if native-comp is having trouble, there's not very much I can do
+   native-comp-async-report-warnings-errors 'silent
+   ;; unicode ellipses are better
+   truncate-string-ellipsis "…"
+   ;; I want to close these fast, so switch to it so I can just hit 'q'
+   help-window-select t
+   ;; this certainly can't hurt anything
+   delete-by-moving-to-trash t
+   ;; keep the point in the same place while scrolling
+   scroll-preserve-screen-position t
+   ;; more info in completions
+   completions-detailed t
+   ;; highlight error messages more aggressively
+   next-error-message-highlight t
+   ;; don't let the minibuffer muck up my window tiling
+   read-minibuffer-restore-windows t
+   ;; scope save prompts to individual projects
+   save-some-buffers-default-predicate 'save-some-buffers-root
+   ;; don't keep duplicate entries in kill ring
+   kill-do-not-save-duplicates t
+   )
+
+  ;; Never mix tabs and spaces. Never use tabs, period.
+  ;; We need the setq-default here because this becomes
+  ;; a buffer-local variable when set.
+  (setq-default indent-tabs-mode nil)
+#+end_src
+
+It's good that Emacs supports the wide variety of file encodings it does, but UTF-8 should always, /always/ be the default.
+
+#+begin_src emacs-lisp
+  (set-charset-priority 'unicode)
+  (prefer-coding-system 'utf-8-unix)
+#+end_src
+
+We also need to turn on a few modes to have behavior that's even remotely modern.
+
+#+begin_src emacs-lisp
+  (delete-selection-mode t)
+  (global-display-line-numbers-mode t)
+  (column-number-mode)
+  (savehist-mode)
+#+end_src
+
+Emacs 27 comes with fast current-line highlight functionality, but it can produce some visual feedback in ~vterm~ buffers, so we only activate it in programming or text modes.
+
+#+begin_src emacs-lisp
+  (require 'hl-line)
+  (add-hook 'prog-mode-hook #'hl-line-mode)
+  (add-hook 'text-mode-hook #'hl-line-mode)
+#+end_src
+
+Emacs is super fond of littering filesystems with backups and autosaves, since it was built with the assumption that multiple users could be using the same Emacs instance on the same filesystem. This was valid in 1980. It is no longer the case.
+
+#+begin_src emacs-lisp
+  (setq
+   make-backup-files nil
+   auto-save-default nil
+   create-lockfiles nil)
+#+end_src
+
+By default, Emacs stores any configuration you make through its UI by writing ~custom-set-variables~ invocations to your init file, or to the file specified by ~custom-file~. Though this is convenient, it's also an excellent way to cause aggravation when the variable you keep trying to modify is being set in some ~custom-set-variables~ invocation. We can disable this by mapping it to a temporary file. (I used to map this to ~/dev/null~, but this started causing a bunch of inane save dialogues.)
+
+#+begin_src emacs-lisp
+  (setq custom-file (make-temp-name "/tmp/"))
+#+end_src
+
+However, because Emacs stores theme-safety information in that file, we have to disable the warnings entirely. This is not particularly secure, but if someone has uploaded malicious code to MELPA inside a theme, I have bigger problems. (Besides, Emacs is not a secure system, and I see no need to try overmuch to make it one.)
+
+#+begin_src emacs-lisp
+  (setq custom-safe-themes t)
+#+end_src
+
+There are a great many keybindings that are actively hostile, in that they are bound to useless or obsolete functions that are really easy to trigger accidentally. (The lambda is because ~unbind-key~ is a macro.)
+
+#+begin_src emacs-lisp
+  (defun pt/unbind-bad-keybindings ()
+    "Remove unhelpful keybindings."
+    (-map (lambda (x) (unbind-key x)) '("C-x C-f" ;; find-file-read-only
+                                        "C-x C-d" ;; list-directory
+                                        "C-z" ;; suspend-frame
+                                        "C-x C-z" ;; again
+                                        "<mouse-2>" ;; pasting with mouse-wheel click
+                                        "<C-wheel-down>" ;; text scale adjust
+                                        "<C-wheel-up>" ;; ditto
+                                        "s-n" ;; make-frame
+                                        "s-t" ;; ns-popup-font-panel
+                                        "s-p" ;; ns-print-buffer
+                                        "C-x C-q" ;; read-only-mode
+                                        )))
+#+end_src
+
+These libraries are helpful to have around when writing little bits of elisp, like the above. You can't possibly force me to remember the difference between the ~mapcar~, ~mapc~, ~mapcan~, ~mapconcat~, the ~cl-~ versions of some of the aforementioned, and ~seq-map~. I refuse. ~shut-up~ is good for noisy packages.
+
+#+begin_src emacs-lisp
+  (use-package s)
+  (use-package f)
+  (use-package dash :config (pt/unbind-bad-keybindings))
+  (use-package shut-up)
+#+end_src
+
+
+The out-of-the-box treatment of whitespace is unfortunate, but fixable.
+
+#+begin_src emacs-lisp
+  (add-hook 'before-save-hook #'delete-trailing-whitespace)
+  (setq require-final-newline t)
+
+  (defun pt/indent-just-yanked ()
+    "Re-indent whatever you just yanked appropriately."
+    (interactive)
+    (exchange-point-and-mark)
+    (indent-region (region-beginning) (region-end))
+    (deactivate-mark))
+#+end_src
+
+
+Emacs is also in love with showing you its NEWS file; it's bound to like four different keybindings. Overriding the function makes it a no-op. You might say… no news is good news. For that matter, we can elide more GNU agitprop.
+
+#+begin_src emacs-lisp
+  (defalias 'view-emacs-news 'ignore)
+  (defalias 'describe-gnu-project 'ignore)
+  (defalias 'describe-copying 'ignore)
+#+end_src
+
+Undo has always been problematic for me in Emacs.
+~vundo~ has been reported to have fewer bugs than similar other packages.
+
+#+begin_src emacs-lisp
+  (use-package vundo
+    :diminish
+    :bind* (("C-c _" . vundo))
+    :custom (vundo-glyph-alist vundo-unicode-symbols))
+#+end_src
+
+I define a couple of my own configuration variables with ~defvar~, and no matter how many times I mark the variable as safe, it warns me every time I set it in the ~.dir-locals~ file. Disabling these warnings is probably (?) the right thing to do.
+
+#+begin_src emacs-lisp
+  (setq enable-local-variables :all)
+#+end_src
+
+** Visuals
+
+Every Emacs window should, by default occupy all the screen space it can.
+
+#+begin_src emacs-lisp
+  (add-to-list 'default-frame-alist '(fullscreen . maximized))
+#+end_src
+
+Window chrome both wastes space and looks unappealing.
+
+#+begin_src emacs-lisp
+  (when (window-system)
+    (menu-bar-mode t)
+    (tool-bar-mode -1)
+    (scroll-bar-mode -1)
+    (tooltip-mode -1)
+    (pixel-scroll-mode))
+#+end_src
+
+
+
+Emacs looks a lot better when it has a modern monospaced font and VSCode-esque icons, as well as smooth scrolling.
+
+#+begin_src emacs-lisp
+  (if sys/linuxp
+      (progn
+        ;; Fonts
+        (defun font-installed-p (font-name)
+          "Check if font with FONT-NAME is available."
+          (find-font (font-spec :name font-name)))
+
+
+        (defun centaur-setup-fonts ()
+          "Setup fonts."
+          (when (display-graphic-p)
+            ;; Set default font
+            (cl-loop for font in '("Liberation Mono" "Roboto Mono" "Fira Code")
+                     when (font-installed-p font)
+                     return (set-face-attribute 'default nil
+                                                :family font
+                                                :height 110))
+
+            ;; Specify font for all unicode characters
+            (cl-loop for font in '("Segoe UI Symbol" "Symbola" "Symbol")
+                     when (font-installed-p font)
+                     return (if (< emacs-major-version 27)
+                                (set-fontset-font "fontset-default" 'unicode font nil 'prepend)
+                              (set-fontset-font t 'symbol (font-spec :family font) nil 'prepend))))
+
+          ;; Emoji
+          (cl-loop for font in '("Noto Color Emoji" "Apple Color Emoji" "Segoe UI Emoji")
+                   when (font-installed-p font)
+                   return (cond
+                           ((< emacs-major-version 27)
+                            (set-fontset-font "fontset-default" 'unicode font nil 'prepend))
+                           ((< emacs-major-version 28)
+                            (set-fontset-font t 'symbol (font-spec :family font) nil 'prepend))
+                           (t
+                            (set-fontset-font t 'emoji (font-spec :family font) nil 'prepend))))
+          )
+
+        (centaur-setup-fonts)
+        (add-hook 'window-setup-hook #'centaur-setup-fonts)
+        (add-hook 'server-after-make-frame-hook #'centaur-setup-fonts)
+        )
+    )
+#+end_src
+
+** Theme
+
+I use Modus Vivendi, the excellent new theme that now ships with Emacs.
+
+#+begin_src emacs-lisp
+  (use-package emacs
+  :init
+  ;; Add all your customizations prior to loading the themes
+  (setq modus-themes-italic-constructs t
+        modus-themes-bold-constructs t
+        modus-themes-region '(bg-only no-extend))
+  :config
+  ;; Load the theme of your choice:
+  (load-theme 'modus-operandi)
+  :bind ("<f4>" . modus-themes-toggle))
+#+end_src
+
+URLs should be highlighted and linkified.
+
+#+begin_src emacs-lisp
+  (global-goto-address-mode)
+#+end_src
+
+*** TODO Icons
+
+#+begin_src emacs-lisp
+  (if sys/linuxp
+       (progn
+        (let ((installed (package-installed-p 'all-the-icons)))
+          (use-package all-the-icons)
+          (unless installed (all-the-icons-install-fonts)))
+
+        (use-package all-the-icons-dired
+          :after all-the-icons
+          :hook (dired-mode . all-the-icons-dired-mode))
+
+    (use-package svg-lib)
+
+    (use-package kind-icon
+        :after corfu
+      :custom
+      (kind-icon-use-icons t)
+      (kind-icon-default-face 'corfu-default) ; Have background color be the same as `corfu' face background
+      (kind-icon-blend-background nil)  ; Use midpoint color between foreground and background colors ("blended")?
+      (kind-icon-blend-frac 0.08)
+      :config
+      (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter) ; Enable `kind-icon'
+    )
+  )
+  )
+#+end_src
+
+** Modeline
+
+#+begin_src emacs-lisp
+  (if sys/linuxp
+    (use-package doom-modeline
+      :custom
+        (doom-modeline-modal-icon nil)
+      :init
+        (doom-modeline-mode 1)
+    )
+    (use-package mood-line
+      :ensure t
+      :config
+      (mood-line-mode)
+      (setq mood-line-glyph-alist mood-line-glyphs-unicode)
+      )
+   )
+#+end_src
+
+Most major modes pollute the modeline, so we pull in diminish.el to quiesce them.
+
+#+begin_src emacs-lisp
+  (use-package diminish
+    :config
+    (diminish 'visual-line-mode))
+#+end_src
+
+
+** Namespaces
+
+Emacs Lisp doesn't have namespaces, which can be ugly when hacking on libraries. Though Emacs 28 added a feature called "[[https://www.gnu.org/software/emacs/manual/html_node/elisp/Shorthands.html][shorthands]]" that mucks with the reader to desugar some specified prefixes (in ~Local Variables~ blocks) into longer equivalents, it's kind of silly specifying them per-file, when what I just want is to hide the common prefix in my function definitions and calls. ~nameless~ does that and provides a shortcut (~C-c C--~) to insert the prefix.
+
+#+begin_src emacs-lisp
+  (use-package nameless
+    :custom
+    (nameless-private-prefix t))
+#+end_src
+
+
+** Quality-of-life improvements
+
+We start by binding a few builtin commands to more-convenient keystrokes.
+
+Given how often I tweak my config, I bind ~C-c E~ to take me to my config file.
+
+#+begin_src emacs-lisp
+  (defun open-init-dir ()
+    "Open this very file."
+    (interactive)
+    (find-file user-emacs-directory))
+
+  (bind-key "C-c E" #'open-init-dir)
+#+end_src
+
+It's weird that Emacs doesn't come with a standard way to insert the current date.
+
+#+begin_src emacs-lisp
+  (defun pt/insert-current-date ()
+    "Insert the current date (Y-m-d) at point."
+    (interactive)
+    (insert (shell-command-to-string "echo -n $(date +%Y-%m-%d)")))
+#+end_src
+
+One of Emacs's most broken UI decisions is to prompt for saving buffers that are marked as modified, even if their contents are the same as on disc. It's totally asinine that this doesn't work like it does everywhere else.
+
+#+begin_src emacs-lisp
+  (defun pt/check-file-modification (&optional _)
+    "Clear modified bit on all unmodified buffers."
+    (interactive)
+    (dolist (buf (buffer-list))
+      (with-current-buffer buf
+        (when (and buffer-file-name (buffer-modified-p) (not (file-remote-p buffer-file-name)) (current-buffer-matches-file-p))
+          (set-buffer-modified-p nil)))))
+
+  (defun current-buffer-matches-file-p ()
+    "Return t if the current buffer is identical to its associated file."
+    (autoload 'diff-no-select "diff")
+    (when buffer-file-name
+      (diff-no-select buffer-file-name (current-buffer) nil 'noasync)
+      (with-current-buffer "*Diff*"
+        (and (search-forward-regexp "^Diff finished \(no differences\)\." (point-max) 'noerror) t))))
+
+  ;; (advice-add 'save-some-buffers :before #'pt/check-file-modification)
+
+  ;; (add-hook 'before-save-hook #'pt/check-file-modification)
+  ;; (add-hook 'kill-buffer-hook #'pt/check-file-modification)
+  (advice-add 'magit-status :before #'pt/check-file-modification)
+  (advice-add 'save-buffers-kill-terminal :before #'pt/check-file-modification)
+#+end_src
+
+
+Emacs's keybinding for ~comment-dwim~ is ~M-;~, which is not convenient to type or particularly mnemonic outside of an elisp context (where commenting is indeed ~;~). Better to bind it somewhere sensible. Also, it's nice to have a binding for ~upcase-dwim~.
+
+#+begin_src emacs-lisp
+  (bind-key* "C-c /" #'comment-dwim)
+  (bind-key* "C-c 0" #'upcase-dwim)
+#+end_src
+
+
+*** Long Lines
+
+Emacs has problems with very long lines. ~so-long~ detects them and takes appropriate action. Good for minified code and whatnot.
+
+#+begin_src emacs-lisp
+  (global-so-long-mode)
+#+end_src
+
+
+
+*** Improving the Help-System
+
+When I hit, accidentally or purposefully, a key chord that forms the prefix of some other chords, I want to see a list of possible completions and their info.
+
+#+begin_src emacs-lisp
+  (use-package which-key
+    :diminish
+    :custom
+    (which-key-enable-extended-define-key t)
+    :config
+    (which-key-mode)
+    (which-key-setup-side-window-right))
+#+end_src
+
+*** Search
+
+**** Buffers
+use isearch or see evil-visualstar
+
+**** TODO Files
+
+deadgrep is the bee's knees for project-wide search, as it uses ~ripgrep~. I defer to the faster and live-previewing ~consult-ripgrep~, but sometimes deadgrep is more useful.
+
+#+begin_src emacs-lisp
+  (use-package deadgrep
+	       :disabled
+    :ensure-system-package rg
+    :bind (("C-c H" . #'deadgrep)))
+#+end_src
+
+
+
+* Dired
+
+Dired needs a couple of customizations to work in a sensible manner.
+
+#+begin_src emacs-lisp
+  (setq
+     dired-dwim-target t  ;; copy and move files
+     ;; Why wouldn't you create destination directories when copying files, Emacs?
+     dired-create-destination-dirs 'ask
+     ;; Before the existence of this option, you had to either hack
+     ;; dired commands or use the dired+ library, the maintainer
+     ;; of which refuses to use a VCS. So fuck him.
+     dired-kill-when-opening-new-dired-buffer t
+     ;; Update directory listings automatically (again, why isn't this default?)
+     dired-do-revert-buffer t
+     ;; Sensible mark behavior
+     dired-mark-region t
+  ;; Open dired folders in same buffer
+  dired-listing-switches "-aBhl  --group-directories-first"
+     )
+  (put 'dired-find-alternate-file 'disabled nil)
+
+#+end_src
+
+
+#+begin_src emacs-lisp
+(use-package fd-dired)
+#+end_src
+
+* Buffer management
+It's useful to have a scratch buffer around, and more useful to have a key chord to switch to it.
+
+#+begin_src emacs-lisp
+  (defun switch-to-scratch-buffer ()
+    "Switch to the current session's scratch buffer."
+    (interactive)
+    (switch-to-buffer "*scratch*"))
+#+end_src
+
+#+begin_src emacs-lisp
+  (defun switch-to-messages-buffer ()
+    "Switch to the current session's scratch buffer."
+    (interactive)
+    (switch-to-buffer "*Messages*"))
+#+end_src
+
+
+
+~keyboard-quit~ sometimes isn't enough, especially if the minibuffer is open, so here's a beefed-up version.
+
+#+begin_src emacs-lisp
+  (defun pt/abort ()
+    "Remove auxiliary buffers."
+    (interactive)
+    (ignore-errors (exit-recursive-edit))
+    (ignore-errors (ctrlf-cancel))
+    (call-interactively #'keyboard-quit))
+#+end_src
+
+Completion systems make ~kill-buffer~ give you a list of possible results, which isn't generally what I want.
+
+#+begin_src emacs-lisp
+  (defun kill-this-buffer ()
+    "Kill the current buffer."
+    (interactive)
+    (pt/check-file-modification)
+    (kill-buffer nil)
+    )
+#+end_src
+
+Also, it's nice to be able to kill all buffers.
+
+#+begin_src emacs-lisp
+  (defun kill-all-buffers ()
+    "Close all buffers."
+    (interactive)
+    (let ((lsp-restart 'ignore))
+      ;; (maybe-unset-buffer-modified)
+      (delete-other-windows)
+      (save-some-buffers)
+      (let
+          ((kill-buffer-query-functions '()))
+        (mapc 'kill-buffer (buffer-list)))))
+#+end_src
+
+** IBuffer
+#+begin_src emacs-lisp
+    (setq ibuffer-saved-filter-groups
+          '(("emacs-config" (or (filename . ".emacs.d")
+                                 (filename . "emacs-config")))
+             ("Org" (or (mode . org-mode)
+                        (filename . "OrgMode")))
+             ("Subversion" (name . "\*svn"))
+             ("Magit" (name . "\*magit"))
+             ("Help" (or (name . "\*Help\*")
+                         (name . "\*Apropos\*")
+                         (name . "\*info\*")))))
+  (add-hook 'ibuffer-mode-hook
+            '(lambda ()
+               (ibuffer-auto-mode 1)))
+
+  (setq ibuffer-expert t)
+  (setq ibuffer-show-empty-filter-groups nil)
+#+end_src
+
+
+* Changes
+
+Making it easy to track changes in a buffer.
+Repeated application goes to more recent changes.
+
+#+begin_src emacs-lisp
+      (use-package goto-chg
+        :ensure t
+        :bind
+          ("C-," . goto-last-change)
+          ("S-C-," . goto-last-change-reverse)
+    )
+#+end_src
+
+
+
+
+* Completion and input
+for a complete,  solution see ~crafted/modules/crafted-completion.el~
+
+** Minibuffer
+Modern minibuffer completion: vertico, consult, marginalia, orderless
+
+#+begin_src emacs-lisp
+  (use-package vertico
+    :config
+    (vertico-mode)
+    (vertico-mouse-mode)
+    (set-face-attribute 'vertico-mouse nil :inherit nil)
+    (savehist-mode)
+    :custom
+    (vertico-count 22)
+    (vertico-cycle t)
+    :bind (:map vertico-map
+		("C-'"           . #'vertico-quick-exit)
+		("C-c '"         . #'vertico-quick-insert)
+		("<return>"      . #'exit-minibuffer)
+		("C-m"           . #'vertico-insert)
+		("C-c SPC"       . #'vertico-quick-exit)
+		("C-<backspace>" . #'vertico)
+		("DEL"           . #'vertico-directory-delete-char)))
+
+  (use-package consult
+    :custom
+    (consult-narrow-key (kbd ";"))
+    (completion-in-region-function #'consult-completion-in-region)
+    (xref-show-xrefs-function #'consult-xref)
+    (xref-show-definitions-function #'consult-xref)
+    (consult-project-root-function #'deadgrep--project-root) ;; ensure ripgrep works
+    (consult-preview-key '(:debounce 0.25 any))
+    )
+
+  (use-package marginalia
+    :config (marginalia-mode))
+
+  (use-package orderless
+    :custom (completion-styles '(orderless basic)))
+
+  (use-package prescient
+    :config (prescient-persist-mode))
+#+end_src
+
+** Autocomplete in Buffers
+
+There is the thinner alternative ~corfu~ compared to ~company~.
+We currently using the builtin completion-at-point facilities for autocomplete. The UI considerations afforded by Vertico make it even nicer than what Company offered, and consistently faster, too.
+
+*** Dynamic Abbreviations
+
+Dabbrev completion is based on completion-in-region and can be used with Corfu. You may want to swap the dabbrev-completion with the dabbrev-expand key for easier access, if you prefer completion.
+#+begin_src emacs-lisp
+  (use-package dabbrev
+    :custom
+    (dabbrev-case-replace nil)
+    (dabbrev-ignored-buffer-regexps '("\\.\\(?:pdf\\|jpe?g\\|png\\)\\'")))
+#+end_src
+
+*** corfu
+Modern completion
+
+#+begin_src emacs-lisp
+  (use-package corfu
+    :custom
+    (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
+    (corfu-auto t)                 ;; Enable auto completion
+    (corfu-preselect-first t)
+    (corfu-echo-documentation t)
+    (corfu-separator ?\s)          ;; Orderless field separator
+    (corfu-quit-at-boundary 'separator) ;; Never quit at completion boundary
+    (corfu-preview-current nil)          ;; Disable current candidate preview
+    (corfu-on-exact-match 'insert)      ;; Configure handling of exact matches
+
+    ;; (corfu-quit-no-match nil)      ;; Never quit, even if there is no match
+    ;; (corfu-preselect 'prompt)      ;; Preselect the prompt
+    ;; (corfu-scroll-margin 5)        ;; Use scroll margin
+
+    (corfu-excluded-modes nil)        ;; add modes where corfu is disabled
+    (corfu-popupinfo-mode t)
+    :init
+    (global-corfu-mode))
+
+
+  (use-package emacs
+    :init
+    ;; TAB cycle if there are only few candidates
+    (setq completion-cycle-threshold 3)
+    (setq completion-category-overrides '((eglot (styles orderless))))
+
+
+    (setq read-extended-command-predicate
+          #'command-completion-default-include-p)
+
+    ;; Enable indentation+completion using the TAB key.
+    ;; `completion-at-point' is often bound to M-TAB.
+    (setq tab-always-indent t))
+#+end_src
+
+
+
+When using Emacs in a terminal:
+#+begin_src emacs-lisp
+    (use-package corfu-terminal)
+
+  (unless (display-graphic-p)
+    (require 'corfu-terminal)
+    (corfu-terminal-mode +1))
+#+end_src
+
+
+**** cape
+Completion sources:
+
+#+begin_src emacs-lisp
+  (use-package cape
+    :init
+    ;; Add `completion-at-point-functions', used by `completion-at-point'.
+    (add-to-list 'completion-at-point-functions #'cape-dabbrev)
+    (add-to-list 'completion-at-point-functions #'cape-file)
+    (add-to-list 'completion-at-point-functions #'cape-sgml)
+    (add-to-list 'completion-at-point-functions #'cape-keyword)
+    (add-to-list 'completion-at-point-functions #'cape-abbrev)
+    (add-to-list 'completion-at-point-functions #'cape-ispell)
+    (add-to-list 'completion-at-point-functions #'cape-symbol)
+    (add-to-list 'completion-at-point-functions #'cape-history)
+    ;;(add-to-list 'completion-at-point-functions #'cape-tex)
+    ;;(add-to-list 'completion-at-point-functions #'cape-dict)
+    ;;(add-to-list 'completion-at-point-functions #'cape-rfc1345)
+    ;;(add-to-list 'completion-at-point-functions #'cape-line)
+    )
+#+end_src
+
+
+
+** TODO Discover actions
+
+~embark~ is a cool package for discoverability. It provides ~embark-act~, which opens a contextual menu about the thing at point. In essence, it changes Emacs interactions from being verb-oriented (aka Lispy-functional) to noun-oriented (like our more OO languages). But it makes things like variable customization easy: no longer do I have to, when I want to tweak a variable name, figure out its name, copy-paste it, hit ~M-:~ and write ~(setq var whatever)~ myself. Just ~embark-act~, hit ~=~ (for assignment), and then I can type in the new value.
+
+#+begin_src emacs-lisp
+  (use-package embark
+              :disabled
+  )
+
+  (use-package embark-consult
+               :disabled
+               :after (embark consult))
+
+  (use-package embark-vc
+               :disabled
+               :after embark)
+#+end_src
+
+
+** TODO Regular Expressions
+
+I remember the days before Emacs had real regular expressions. Nowadays, we have them, but the find-and-replace UI is bad. ~visual-regexp~ fixes this. I have this bound to an incredibly stupid keybinding because I simply do not want to take the time to catabolize/forget that particular muscle memory.
+
+#+begin_src emacs-lisp
+  (use-package visual-regexp
+	       :disabled
+    :bind (("C-c 5" . #'vr/replace)))
+#+end_src
+
+** Recent Files
+
+
+By default, the list of recent files gets cluttered up with the contents of downloaded packages.
+
+#+begin_src emacs-lisp
+    (use-package recentf
+      :after dash
+      :custom
+      (recentf-exclude '("\\elpa"
+                         "private/tmp" ; to avoid custom files
+                         "type-break"
+                        )
+           )
+      (recentf-max-saved-items 50)
+      (recentf-max-menu-items 30)
+      :config (recentf-mode))
+#+end_src
+
+
+** Shell
+
+Emacs can be a really great editor for shell scripts, but it needs a little love first.
+
+#+begin_src emacs-lisp
+  (setq sh-basic-offset 2
+        sh-basic-indentation 2)
+#+end_src
+
+
+** Emacs-Windows
+#+begin_src emacs-lisp
+  (use-package windmove
+    :config
+    (add-hook 'windmove-mode-hook (windmove-default-keybindings 'meta))
+  )
+#+end_src
+
+
+** vterm
+vterm is not installed from ELPA sites (:pin manual).
+
+vterm installation is shifted to Emacs site-lisp directory for the Arch/Artix OS.
+The Emacs installed within GUIX uses emacs-vterm, which is not found if the ELPA installation is in .emacs.d/elpa/vterm*.
+
+This makes vterm functional under both approaches.
+
+#+begin_src emacs-lisp
+  (if sys/linuxp
+      (progn
+        (require 'vterm)
+        (setq vterm-timer-delay 0.06)
+
+        (defun pt/turn-off-chrome ()
+          (hl-line-mode -1)
+          (setq vterm-shell "/bin/bash")
+          ;;(yascroll-bar-mode nil)
+          (display-line-numbers-mode -1))
+
+        (defun pt/project-run-vterm ()
+          "Invoke `vterm' in the project's root.
+   Switch to the project specific term buffer if it already exists."
+          (interactive)
+          (let* ((project (project-current))
+                 (buffer (format "*vterm %s*" (consult--project-name (project-root project)))))
+            (unless (buffer-live-p (get-buffer buffer))
+              (unless (require 'vterm nil 'noerror)
+                (error "Package 'vterm' is not available"))
+              (vterm buffer)
+              (vterm-send-string (concat "cd " (project-root project)))
+              (vterm-send-return))
+            (switch-to-buffer buffer)))
+
+        (add-hook 'vterm-mode #'pt/turn-off-chrome)
+        )
+    )
+#+end_src
+
+
+* Emac Shell
+Howard Abrahams configuration:
+
+  #+BEGIN_SRC elisp
+  (use-package eshell
+    :init
+    (setq ;; eshell-buffer-shorthand t ...  Can't see Bug#19391
+          eshell-scroll-to-bottom-on-input 'all
+          eshell-error-if-no-glob t
+          eshell-hist-ignoredups t
+          eshell-save-history-on-exit t
+          eshell-prefer-lisp-functions nil
+          eshell-destroy-buffer-when-process-dies t))
+  #+END_SRC
+
+Eshell would get somewhat confused if I ran the following commands
+directly through the normal Elisp library, as these need the better
+handling of ansi-term:
+
+  #+BEGIN_SRC elisp
+    (use-package eshell
+      :init
+      (add-hook 'eshell-mode-hook
+                (lambda ()
+                  (add-to-list 'eshell-visual-commands "ssh")
+                  (add-to-list 'eshell-visual-commands "tail")
+                  (add-to-list 'eshell-visual-commands "top"))))
+  #+END_SRC
+
+   While deleting and recreating =eshell= may be just as fast, I always
+   forget and type =clear=, so let's implement it:
+
+   #+BEGIN_SRC elisp
+     (defun eshell/clear ()
+       "Clear the eshell buffer."
+       (let ((inhibit-read-only t))
+         (erase-buffer)
+         (eshell-send-input)))
+#+END_SRC
+
+#+begin_src emacs-lisp
+  (use-package eshell-prompt-extras
+    :ensure t
+    :config
+     (with-eval-after-load "esh-opt"
+  (autoload 'epe-theme-lambda "eshell-prompt-extras")
+  (setq eshell-highlight-prompt nil
+        eshell-prompt-function 'epe-theme-lambda))
+  )
+#+end_src
+
+
+Help!
+#+begin_src emacs-lisp
+  (use-package esh-help
+    :ensure t
+    :after eshell-mode
+    :config
+     (setup-esh-help-eldoc)
+  )
+#+end_src
+
+Quickly change directories.
+
+#+begin_src emacs-lisp
+  (use-package eshell-z
+    :ensure t
+    :after eshell-mode
+    :config
+     (add-hook 'eshell-mode-hook
+          (defun my-eshell-mode-hook ()
+            (require 'eshell-z)))
+  )
+#+end_src
+
+Add syntax highlighting.
+
+#+begin_src emacs-lisp
+(use-package eshell-syntax-highlighting
+  :ensure t
+  :after eshell-mode
+  :config
+  (eshell-syntax-highlighting-global-mode +1))
+#+end_src
+
+
+* Bye
+
+#+begin_src emacs-lisp
+;;; basic-setup.el ends here
+#+end_src

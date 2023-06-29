@@ -1,0 +1,408 @@
+* Text manipulation
+
+The ~fill-paragraph~ (~M-q~) command can be useful for formatting long text lines in a pleasing matter. I don't do it in every document, but when I do, I want more columns than the default *:70*.
+
+#+begin_src emacs-lisp
+  (setq-default fill-column 120)
+#+end_src
+
+* Grammar checker
+Language Tool
+#+begin_src emacs-lisp
+  (use-package langtool
+    :ensure t
+    :init
+    (setq langtool-default-language "de-DE")
+    (setq langtool-language-tool-jar
+          (expand-file-name (concat emacsen-dir "/java/LanguageTool/languagetool-commandline.jar"))
+          )
+    )
+#+end_src
+
+
+* Spell Checking
+
+#+begin_src emacs-lisp
+      (require 'ispell)
+      (setq spellcheck-dir (expand-file-name (concat emacsen-dir "/spelling/")))
+      (setq ispell-personal-dictionary (expand-file-name (concat spellcheck-dir "ve-dict")))
+      (setq ispell-program-name (executable-find "hunspell"))
+
+      (use-package flyspell
+      :config
+      (setq flyspell-abbrev-p t
+            flyspell-use-global-abbrev-table-p t
+            flyspell-issue-message-flag nil
+            flyspell-issue-welcome-flag nil)
+      :hook ((text-mode . flyspell-mode)
+             (prog-mode . flyspell-prog-mode)))
+
+    (use-package flyspell-correct
+      :ensure t
+      :after flyspell
+      :custom
+      (flyspell-correct-interface #'flyspell-correct-completing-read))
+
+  (use-package consult-flyspell
+      :ensure t
+    :after flyspell
+    :config
+    (setq consult-flyspell-set-point-after-word t
+          consult-flyspell-always-check-buffer nil
+          consult-flyspell-select-function (lambda () (flyspell-correct-at-point) (consult-flyspell)))
+  )
+
+  (defun flyspell-learn-word-at-point ()
+      "Takes the highlighted word at point -- nominally a misspelling -- and inserts it into the personal/private dictionary, such that it is known and recognized as a valid word in the future."
+      (interactive)
+      (let ((current-location (point))
+            (word (flyspell-get-word)))
+        (when (consp word)
+          (flyspell-do-correct
+            'save nil
+            (car word)
+            current-location
+            (cadr word)
+            (caddr word)
+            current-location))))
+#+end_src
+
+* Pandoc: Conversion of text formats
+#+begin_src emacs-lisp
+  (use-package pandoc :defer t)
+  (add-hook 'pandoc-mode-hook 'pandoc-load-default-settings)
+#+end_src
+
+* Text files
+
+** Language Awareness
+
+ #+begin_src emacs-lisp
+   (global-set-key [(shift f11)] 'set-language-environment)
+
+   (defun ve/natural-language-change ()
+     "."
+     (interactive)
+     (message (concat "language changed: new language is " current-language-environment))
+     (cond ((string= current-language-environment "German")
+            (progn
+              (clear-abbrev-table text-mode-abbrev-table)
+              (load (expand-file-name (concat emacsen-dir "/abbreviations/umlaute-de.el")))
+              (load (expand-file-name (concat emacsen-dir "/abbreviations/autocorrect-de.el")))
+              (setq ispell-dictionary german-dict)
+              (setq langtool-default-language "de-DE")
+              )
+            )
+           ((string= current-language-environment "English")
+            (progn
+              (clear-abbrev-table text-mode-abbrev-table)
+              (load (expand-file-name (concat emacsen-dir "/abbreviations/autocorrect-en.el")))
+              (setq ispell-dictionary english-dict)
+              (setq langtool-default-language "en-GB")
+              )
+            )
+           (t (clear-abbrev-table text-mode-abbrev-table))
+           )
+   )
+
+   (add-hook 'set-language-environment-hook 've/natural-language-change)
+ #+end_src
+
+
+** Markdown
+
+Use GitHub-flavored Markdown.
+
+ #+begin_src emacs-lisp
+   (use-package markdown-mode
+     :hook (gfm-mode . visual-line-mode)
+     :bind (:map markdown-mode-map ("C-c C-s a" . markdown-table-align))
+     :mode ("\\.md$" . gfm-mode))
+ #+end_src
+
+
+** Org-mode
+
+Even though my whole-ass blogging workflow is built around org-mode, I still can't say that I know it very well. I don't take advantage of ~org-agenda~, ~org-timer~, ~org-calendar~, ~org-capture~, anything interesting to do with tags, et cetera. Someday I will learn these things, but not yet.
+
+The package *org-modern* makes org-buffers look much cleaner.
+
+#+begin_src emacs-lisp
+  (use-package org
+    :hook ((org-mode . visual-line-mode)
+           (org-mode . ve/org-mode-hook)
+           (org-mode . kb/cape-capf-setup-org)
+           (org-src-mode . display-line-numbers-mode))
+    :bind (("C-c o c" . org-capture)
+           ("C-c o a" . org-agenda)
+           ("C-c o A" . consult-org-agenda)
+           :map org-mode-map
+           ("M-<left>" . nil)
+           ("M-<right>" . nil)
+           ("C-c c" . #'org-mode-insert-code)
+           ("C-c a f" . #'org-shifttab)
+           ("C-c a S" . #'zero-width))
+    :custom
+    (setq org-time-stamp-custom-formats (quote ("<%m/%d/%y %a %H:%M>" \, "<%m/%d/%y %a>")))
+    (setq org-read-date-prefer-future 'time)
+    (org-adapt-indentation nil)
+    (org-special-ctrl-a/e t)
+    ;;      (org-fontify-emphasized-text t)
+    ;;      (org-fontify-quote-and-verse-blocks t)
+    (org-return-follows-link t)
+    (org-src-ask-before-returning-to-edit-buffer nil "org-src is kinda needy out of the box")
+    (org-src-window-setup 'current-window)
+    (org-directory (expand-file-name (concat (getenv "HOME") "/gtd/")))
+    ;;        (org-default-notes-file (concat org-directory "/notes"))
+    ;;      (org-pretty-entities t)
+    :config
+      (defun kb/cape-capf-setup-org ()
+          (let (result)
+            (dolist (element (list
+                              (cape-super-capf #'cape-ispell #'cape-dabbrev))
+                             result)
+              (add-to-list 'completion-at-point-functions element))
+          ))
+    (defun ve/org-mode-hook ()
+        (add-to-list 'ispell-skip-region-alist '(
+                     'org-property-re
+                     'org-property-drawer-re
+                     'org-clock-drawer-re
+                     'org-logbook-drawer-re
+                     '("~" . "~")
+                     '("=" . "=")
+                     '("*" . "*")
+                     '("/" . "/")
+                     )
+        )
+      )
+      (defun make-inserter (c) '(lambda () (interactive) (insert-char c)))
+      (defun zero-width () (interactive) (insert "​"))
+      (defun org-mode-insert-code ()
+        "Like markdown-insert-code, but for org instead."
+        (interactive)
+        (org-emphasize ?~))
+      )
+    ;; NO spell check for embedded snippets
+    (defadvice org-mode-flyspell-verify (after org-mode-flyspell-verify-hack activate)
+      (let* ((rlt ad-return-value)
+             (begin-regexp "^[ \t]*#\\+begin_\\(src\\|html\\|latex\\|example\\|quote\\)")
+             (end-regexp "^[ \t]*#\\+end_\\(src\\|html\\|latex\\|example\\|quote\\)")
+             (case-fold-search t)
+             b e)
+        (when ad-return-value
+          (save-excursion
+            (setq b (re-search-backward begin-regexp nil t))
+            (if b (setq e (re-search-forward end-regexp nil t))))
+          (if (and b e (< (point) e)) (setq rlt nil)))
+        (setq ad-return-value rlt)))
+
+    (use-package org-contrib)
+
+    (use-package org-modern
+      :config (global-org-modern-mode)
+      :custom (org-modern-variable-pitch nil))
+#+end_src
+
+*** GTD
+
+#+begin_src emacs-lisp
+;; deutscher Kalender:
+(setq calendar-week-start-day 1
+      calendar-day-name-array
+        ["Sonntag" "Montag" "Dienstag" "Mittwoch"
+         "Donnerstag" "Freitag" "Samstag"]
+      calendar-month-name-array
+        ["Januar" "Februar" "März" "April" "Mai"
+         "Juni" "Juli" "August" "September"
+         "Oktober" "November" "Dezember"])
+#+end_src
+
+#+begin_src emacs-lisp
+
+;; Change task state to STARTED when clocking in
+(setq org-clock-out-remove-zero-time-clocks t)
+(setq org-clock-out-when-done t)
+(setq org-clock-persist (quote history))
+#+end_src
+
+**** Agenda
+#+begin_src emacs-lisp
+  (setq org-agenda-clock-consistency-checks '(:max-duration "10:00"
+                                              :min-duration 0
+                                              :max-gap "0:05"
+                                              :gap-ok-around ("12:30")
+                                              :default-face (:background "Red")
+                                              :gap-face (:background "green")))
+
+
+  (setq org-agenda-include-diary t)
+
+  ;; Overwrite the current window with the agenda
+  (setq org-agenda-window-setup 'current-window)
+
+  (setq org-agenda-span 'day)
+  (setq org-agenda-files
+        (list (concat org-directory "studium.org")
+              (concat org-directory "aufgaben.org")
+              (concat org-directory "privat.org")
+              )
+        )
+
+  ;; Tasks mit Datum in der Agenda ausblenden, wenn sie bereits erledigt sind:
+  (setq org-agenda-skip-deadline-if-done t)
+  (setq org-agenda-skip-scheduled-if-done t)
+#+end_src
+
+
+**** Pomodoro Time Management
+
+#+begin_src emacs-lisp
+    (use-package pomidor
+    :config (setq pomidor-sound-tick nil
+                  pomidor-sound-tack nil)
+            (setq pomidor-seconds (* 25 60)) ; 25 minutes for the work period
+            (setq pomidor-break-seconds (* 5 60)) ; 5 minutes break time
+            (setq pomidor-breaks-before-long 4) ; wait 4 short breaks before long break
+            (setq pomidor-long-break-seconds (* 20 60)) ; 20 minutes long break time
+    :hook (pomidor-mode . (lambda ()
+                            (display-line-numbers-mode -1) ; Emacs 26.1+
+                            (setq left-fringe-width 0 right-fringe-width 0)
+                            (setq left-margin-width 2 right-margin-width 0)
+                            ;; force fringe update
+                            (set-window-buffer nil (current-buffer)))))
+#+end_src
+
+*** Spaced Repetition Learning
+
+#+begin_src emacs-lisp
+    (use-package org-drill
+      :ensure t
+      :config
+      (setq org-drill-add-random-noise-to-intervals-p t)
+      (setq org-drill-adjust-intervals-for-early-and-late-repetitions-p t)
+      (setq org-drill-maximum-items-per-session 30)
+      (setq org-drill-maximum-duration 15)   ; minutes
+      (setq org-drill-hint-separator "||")
+      (setq org-drill-left-cloze-delimiter "<[")
+      (setq org-drill-right-cloze-delimiter "]>")
+      (setq org-drill-learn-fraction 0.25)
+  )
+#+end_src
+
+
+#+begin_src emacs-lisp
+#+end_src
+
+
+*** Drawing
+
+#+begin_src emacs-lisp
+    (require 'asy-mode)
+#+end_src
+
+*** More Export Options
+
+#+begin_src emacs-lisp
+    (use-package ox-pandoc)
+#+end_src
+
+*** Babel
+
+#+begin_src emacs-lisp
+    (use-package ob-mermaid)
+    (require 'ob-asymptote)
+    (require 'ob-tcl)
+
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((emacs-lisp . t)
+     (gnuplot . t)
+     (asymptote . t)
+     (python . t)
+     (tcl . t)
+     (calc . t)
+     (julia . t)
+     (R . t)
+     (dot . t)
+     (sql . t)
+     (awk . t)
+     (shell . t)
+     ))
+
+  (setq org-confirm-babel-evaluate nil)
+  (add-hook 'org-babel-after-execute-hook 'org-display-inline-images)
+#+end_src
+
+
+*** Web Presentations with reveal.js
+#+begin_src emacs-lisp
+  (use-package org-re-reveal)
+(setq org-re-reveal-title-slide nil)
+(setq org-re-reveal-mathjax 1)
+#+end_src
+
+
+*** org-denote
+#+begin_src emacs-lisp
+    (use-package denote)
+
+  (setq denote-directory (expand-file-name (concat (getenv "HOME") "/notes/")))
+
+
+  (setq denote-known-keywords '("emacs" "eps" "ivv" "izs" "julia" "statistics" "probability"))
+  (setq denote-infer-keywords t)
+  (setq denote-sort-keywords t)
+  (setq denote-file-type nil) ; Org is the default, set others here
+  (setq denote-prompts '(title keywords))
+
+  (setq denote-date-prompt-use-org-read-date t)
+
+  (setq denote-allow-multi-word-keywords t)
+
+  (setq denote-date-format nil) ; read doc string
+
+  ;; By default, we fontify backlinks in their bespoke buffer.
+  (setq denote-link-fontify-backlinks t)
+
+  (add-hook 'dired-mode-hook #'denote-dired-mode)
+
+  (defun my-denote-journal ()
+    "Create an entry tagged 'journal', while prompting for a title."
+    (interactive)
+    (denote
+     (denote-title-prompt)
+     '("journal")))
+
+  (with-eval-after-load 'org-capture
+    (setq denote-org-capture-specifiers "%l\n%i\n%?")
+    (add-to-list 'org-capture-templates
+                 '("n" "New note (with denote.el)" plain
+                   (file denote-last-path)
+                   #'denote-org-capture
+                   :no-save t
+                   :immediate-finish nil
+                   :kill-buffer t
+                   :jump-to-captured t)))
+#+end_src
+
+** Muse
+#+begin_src emacs-lisp
+  (use-package muse :defer t)
+#+end_src
+
+
+** Python Documentation
+
+ReST
+#+begin_src emacs-lisp
+  (use-package rst :defer t)
+#+end_src
+
+
+
+* Bye
+
+#+begin_src emacs-lisp
+;;; text_gtd-setup.el ends here
+#+end_src
