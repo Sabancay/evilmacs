@@ -10,13 +10,14 @@
 (require 'package)
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
 (add-to-list 'package-archives '("ublt" . "https://elpa.ubolonton.org/packages/") t)
+;;(add-to-list 'package-archives '("nongnu" . "https://elpa.nongnu.org/nongnu/"))
 (setq package-native-compile t)
 (setq use-package-always-ensure nil)
 (package-initialize)
 (unless (package-installed-p 'use-package)
   (message "refreshing contents")
   (unless package-archive-contents (package-refresh-contents))
-  (setq use-package-always-ensure t)
+;;  (setq use-package-always-ensure t)
   (package-install 'use-package))
 
 (eval-when-compile

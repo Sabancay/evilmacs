@@ -41,7 +41,7 @@ Automatically revert buffers on change.
 
 #+begin_src emacs-lisp
   (global-auto-revert-mode t)
-  (global-auto-revert-non-file-buffers t)
+  (setq global-auto-revert-non-file-buffers t)
   (setq auto-revert-verbose t)
 #+end_src
 
@@ -808,15 +808,8 @@ Emacs can be a really great editor for shell scripts, but it needs a little love
   )
 #+end_src
 
-
+* Terminal
 ** vterm
-vterm is not installed from ELPA sites (:pin manual).
-
-vterm installation is shifted to Emacs site-lisp directory for the Arch/Artix OS.
-The Emacs installed within GUIX uses emacs-vterm, which is not found if the ELPA installation is in .emacs.d/elpa/vterm*.
-
-This makes vterm functional under both approaches.
-
 #+begin_src emacs-lisp
   (if sys/linuxp
       (progn
@@ -846,6 +839,13 @@ This makes vterm functional under both approaches.
         (add-hook 'vterm-mode #'pt/turn-off-chrome)
         )
     )
+#+end_src
+
+** ELisp Terminal emulation
+Currently(2023-06-30) not running on Windows.
+
+#+begin_src emacs-lisp
+;;  (require 'eat)
 #+end_src
 
 
